@@ -1,0 +1,67 @@
+version: '3'
+
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user
+      POSTGRES_DB: user
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: user@pgadmin.com
+      PGADMIN_DEFAULT_PASSWORD: user
+    ports:
+      - 8180:80
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: >
+      sh -c "
+      python3 manage.py migrate &&
+      python3 manage.py shell -c 'from django.contrib.auth.models import User; User.objects.create_superuser(\"user\", \"a@a.com\", \"user\")' &&
+      python3 manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - .:/code
+    ports:
+      - 8050:8000
+    depends_on:
+      - db
+      - redis
+
+  redis:
+    image: redis
+
+  celery:
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A userBehaviourTracking worker --loglevel=info
+    volumes:
+      - .:/code
+    depends_on:
+      - db
+      - redis
+
+  celery-beat:
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A userBehaviourTracking beat --loglevel=info
+    volumes:
+      - .:/code
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:
